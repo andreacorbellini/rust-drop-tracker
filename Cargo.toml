@@ -1,0 +1,14 @@
+[package]
+name = "drop-tracker"
+version = "0.1.0"
+edition = "2021"
+authors = ["Andrea Corbellini <corbellini.andrea@gmail.com>"]
+license = "BSD-3-Clause"
+
+description = "Crate to check when a variable gets dropped. Useful for testing wrappers and containers that use unsafe memory management."
+repository = "https://github.com/andreacorbellini/rust-drop-tracker"
+
+keywords = ["testing", "drop"]
+categories = ["development-tools::testing", "rust-patterns"]
+
+[dependencies]
