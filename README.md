@@ -20,7 +20,7 @@ if it has been dropped.
 
 # Examples
 
-This is how you would test that a container like [`Vec`] drops all its items when the container
+This is how you would test that a container like `Vec` drops all its items when the container
 is dropped:
 
 ```
@@ -29,11 +29,7 @@ use drop_tracker::DropTracker;
 let mut tracker = DropTracker::new();
 
 // Create a new vector and add a bunch of elements to it. The elements in this case are
-// identified by integer key (1, 2, 3), but any hashable type would work.
-//
-// Labels are only used to identify the elements within the tracker, and are not passed
-// around. In this example, the integers 1, 2 and 3 are not placed into the vector, but are
-// kept into the DropTracker.
+// identified by integer keys (1, 2, 3), but any hashable type would work.
 let v = vec![tracker.track(1),
              tracker.track(2),
              tracker.track(3)];
@@ -48,7 +44,7 @@ tracker.all_dropped(1..=3)
        .expect("expected all elements to be dropped");
 ```
 
-This is how you would test a struct that involves [`MaybeUninit`]:
+This is how you would test a struct that involves `MaybeUninit`:
 
 ```
 # #![allow(dead_code)]
