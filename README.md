@@ -1,3 +1,5 @@
+[![Crates.io](https://img.shields.io/crates/v/drop-tracker)](https://crates.io/crates/drop-tracker) [![docs.rs](https://img.shields.io/docsrs/drop-tracker)](https://docs.rs/drop-tracker/latest/drop_tracker/) [![Crates.io](https://img.shields.io/crates/l/drop-tracker)](https://choosealicense.com/licenses/bsd-3-clause/)
+
 Rust crate to check if a variable got correctly [dropped]. This crate is mostly useful in unit
 tests for code involving [`ManuallyDrop`], [`MaybeUninit`], unsafe memory management,
 custom containers, and more.
