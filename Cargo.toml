@@ -1,6 +1,6 @@
 [package]
 name = "drop-tracker"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Andrea Corbellini <corbellini.andrea@gmail.com>"]
 license = "BSD-3-Clause"
