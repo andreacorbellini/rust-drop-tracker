@@ -677,7 +677,6 @@ impl<K: Hash + Eq> DropTracker<K> {
     /// assert_eq!(tracker.try_forget("a"), Ok(State::Alive));
     /// assert_eq!(tracker.try_forget("b"), Err(NotTrackedError));
     /// ```
-    #[must_use]
     pub fn try_forget<Q>(&mut self, key: &Q) -> Result<State, NotTrackedError>
         where K: Borrow<Q>,
               Q: Hash + Eq + ?Sized
