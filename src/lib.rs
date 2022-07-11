@@ -132,7 +132,7 @@
 //! ```
 //!
 //! Keys are required to be hashable and unique. If you need [`DropItem`] to hold a non-hashable
-//! value, or a repeated value, you can construct a [`DropItem`] with an abritrary value using
+//! value, or a repeated value, you can construct a [`DropItem`] with an arbitrary value using
 //! [`DropTracker::track_with_value`]:
 //!
 //! ```
@@ -344,7 +344,7 @@ impl<K> DropTracker<K> {
         }
     }
 
-    /// Returns an iteartor over the keys tracked by this `DropTracker`.
+    /// Returns an iterator over the keys tracked by this `DropTracker`.
     ///
     /// The order of keys returned by this iterator is non deterministic.
     ///
@@ -368,7 +368,7 @@ impl<K> DropTracker<K> {
         self.tracked.keys()
     }
 
-    /// Returns an iteartor over the keys tracked by this `DropTracker` that are alive.
+    /// Returns an iterator over the keys tracked by this `DropTracker` that are alive.
     ///
     /// The order of keys returned by this iterator is non deterministic.
     ///
@@ -400,7 +400,7 @@ impl<K> DropTracker<K> {
                     .map(|(key, _)| key)
     }
 
-    /// Returns an iteartor over the keys tracked by this `DropTracker` that have been dropped.
+    /// Returns an iterator over the keys tracked by this `DropTracker` that have been dropped.
     ///
     /// The order of keys returned by this iterator is non deterministic.
     ///
@@ -1038,7 +1038,7 @@ impl<K: Hash + Eq> DropTracker<K> {
 /// // Create a new item, this time using an explicit `String` value
 /// let abc_item = tracker.track_with_value(111, String::from("abc"));
 ///
-/// // Comparision with other items using `String` work using the underlying `String`
+/// // Comparison with other items using `String` work using the underlying `String`
 /// // operations
 /// assert_eq!(abc_item, tracker.track_with_value(222, String::from("abc")));
 /// assert_ne!(abc_item, tracker.track_with_value(333, String::from("def")));
