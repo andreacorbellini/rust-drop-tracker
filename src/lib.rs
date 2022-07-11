@@ -24,11 +24,7 @@
 //! let mut tracker = DropTracker::new();
 //!
 //! // Create a new vector and add a bunch of elements to it. The elements in this case are
-//! // identified by integer key (1, 2, 3), but any hashable type would work.
-//! //
-//! // Labels are only used to identify the elements within the tracker, and are not passed
-//! // around. In this example, the integers 1, 2 and 3 are not placed into the vector, but are
-//! // kept into the DropTracker.
+//! // identified by integer keys (1, 2, 3), but any hashable type would work.
 //! let v = vec![tracker.track(1),
 //!              tracker.track(2),
 //!              tracker.track(3)];
@@ -105,6 +101,56 @@
 //! unsafe { ptr::drop_in_place(&mut item); } // ok
 //! unsafe { ptr::drop_in_place(&mut item); } // panic!
 //! ```
+//!
+//! # Use in collections
+//!
+//! The [`DropItem`] instances returned by [`DropTracker::track`] hold a clone of the key passed
+//! to `track`. The `DropItem`s are [comparable](std::cmp) and [hashable](std::hash) if the
+//! underlying key is. This makes `DropItem` instances usable directly in collections like
+//! [`HashMap`](std::collections::HashMap), [`BTreeMap`](std::collections::BTreeMap),
+//! [`HashSet`](std::collections::HashSet) and many more.
+//!
+//! Here is an example involving [`HashSet`](std::collections::HashSet):
+//!
+//! ```
+//! use drop_tracker::DropTracker;
+//! use std::collections::HashSet;
+//!
+//! let mut tracker = DropTracker::new();
+//!
+//! let mut set = HashSet::from([
+//!     tracker.track(1),
+//!     tracker.track(2),
+//!     tracker.track(3),
+//! ]);
+//!
+//! set.remove(&3);
+//!
+//! tracker.state(&1).alive().expect("first item should be alive");
+//! tracker.state(&2).alive().expect("second item should be alive");
+//! tracker.state(&3).dropped().expect("third item should be dropped");
+//! ```
+//!
+//! Keys are required to be hashable and unique. If you need [`DropItem`] to hold a non-hashable
+//! value, or a repeated value, you can construct a [`DropItem`] with an abritrary value using
+//! [`DropTracker::track_with_value`]:
+//!
+//! ```
+//! use drop_tracker::DropTracker;
+//!
+//! let mut tracker = DropTracker::new();
+//!
+//! // Construct items identified by integers and holding floats (which are not hashable)
+//! let item1 = tracker.track_with_value(1, 7.52);
+//! let item2 = tracker.track_with_value(2, 3.89);
+//!
+//! // Items compare according to their value
+//! assert!(item1 > item2); // 7.52 > 3.89
+//!
+//! // Items that support comparison can be put in a vector and sorted
+//! let mut v = vec![item1, item2];
+//! v.sort_by(|x, y| x.partial_cmp(y).unwrap());
+//! ```
 
 #![warn(missing_debug_implementations)]
 #![warn(missing_docs)]
@@ -118,6 +164,8 @@
 #[cfg(test)]
 mod tests;
 
+mod itemtraits;
+
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -125,6 +173,7 @@ use std::error::Error;
 use std::fmt;
 use std::hash::Hash;
 use std::iter::FusedIterator;
+use std::mem::MaybeUninit;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -449,6 +498,9 @@ impl<K> DropTracker<K> {
 impl<K: Hash + Eq> DropTracker<K> {
     /// Creates a new [`DropItem`] identified by the given key.
     ///
+    /// The value held by the `DropItem` is a clone of the key. Use
+    /// [`DropTracker::track_with_value`] if you wish to specify a custom value.
+    ///
     /// # Panics
     ///
     /// Panics if the key is already used by another tracked item.
@@ -499,12 +551,17 @@ impl<K: Hash + Eq> DropTracker<K> {
     /// let _ = tracker.forget("abc");
     /// let item2 = tracker.track("abc"); // works
     /// ```
-    pub fn track(&mut self, key: K) -> DropItem {
+    pub fn track(&mut self, key: K) -> DropItem<K>
+        where K: Clone
+    {
         self.try_track(key).expect("cannot track key")
     }
 
     /// Creates a new [`DropItem`] identified by the given key, or [`Err`] if the key is
     /// already in use.
+    ///
+    /// The value held by the `DropItem` is a clone of the key. Use
+    /// [`DropTracker::try_track_with_value`] if you wish to specify a custom value.
     ///
     /// See also [`track`](DropTracker::track).
     ///
@@ -522,17 +579,102 @@ impl<K: Hash + Eq> DropTracker<K> {
     /// let item = tracker.try_track("abc");
     /// assert!(item.is_err()); // key is already used
     /// ```
-    pub fn try_track(&mut self, key: K) -> Result<DropItem, CollisionError> {
+    pub fn try_track(&mut self, key: K) -> Result<DropItem<K>, CollisionError>
+        where K: Clone
+    {
+        let value = key.clone();
+        self.try_track_with_value(key, value)
+    }
+
+    /// Creates a new [`DropItem`] identified by the given key and holding the given value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the key is already used by another tracked item.
+    ///
+    /// Call [`forget`](DropTracker::forget),
+    /// [`forget_dropped`](DropTracker::forget_dropped) or
+    /// [`forget_all`](DropTracker::forget_all) if you wish to reuse a key from an item you no
+    /// longer need to track.
+    ///
+    /// See [`try_track_with_value`](DropTracker::try_track_with_value) for a variant of this
+    /// method that does not panic.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use drop_tracker::DropTracker;
+    /// use drop_tracker::State;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item = tracker.track_with_value("abc", vec![1, 2, 3]);
+    /// assert_eq!(tracker.state("abc"), State::Alive);
+    ///
+    /// drop(item);
+    /// assert_eq!(tracker.state("abc"), State::Dropped);
+    /// ```
+    ///
+    /// Using the same key twice causes a panic:
+    ///
+    /// ```should_panic
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item1 = tracker.track_with_value("abc", vec![1, 2, 3]);
+    /// let item2 = tracker.track_with_value("abc", vec![4, 5, 6]); // panics!
+    /// ```
+    ///
+    /// Use [`forget`](DropTracker::forget) to reuse the same key:
+    ///
+    /// ```
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item1 = tracker.track_with_value("abc", vec![1, 2, 3]);
+    /// let _ = tracker.forget("abc");
+    /// let item2 = tracker.track_with_value("abc", vec![4, 5, 6]); // works
+    /// ```
+    pub fn track_with_value<V>(&mut self, key: K, value: V) -> DropItem<V> {
+        self.try_track_with_value(key, value).expect("cannot track key")
+    }
+
+    /// Creates a new [`DropItem`] identified by the given key and holding the given value, or
+    /// [`Err`] if the key is already in use.
+    ///
+    /// See also [`track_with_value`](DropTracker::track_with_value).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item = tracker.try_track_with_value("abc", vec![1, 2, 3]);
+    /// assert!(item.is_ok());
+    ///
+    /// let item = tracker.try_track_with_value("abc", vec![4, 5, 6]);
+    /// assert!(item.is_err()); // key is already used
+    /// ```
+    pub fn try_track_with_value<V>(&mut self, key: K, value: V) -> Result<DropItem<V>, CollisionError> {
         let state = StateCell::new(State::Alive);
         match self.tracked.entry(key) {
             Entry::Occupied(_) => Err(CollisionError),
             Entry::Vacant(entry) => {
                 entry.insert(state.clone());
-                Ok(DropItem::new(state))
+                Ok(DropItem::new(value, state))
             },
         }
     }
+}
 
+impl<K: Hash + Eq> DropTracker<K> {
     /// Checks the state of a [`DropItem`] tracked by this `DropTracker`: [alive](State::Alive) or
     /// [dropped](State::Dropped).
     ///
@@ -828,13 +970,32 @@ impl<K: Hash + Eq> DropTracker<K> {
 
 /// An item that will notify the parent [`DropTracker`] once it gets dropped.
 ///
-/// `DropItem` instances are created by [`DropTracker::track`]. Items do not store any information
-/// about the key that was passed to `track`. To check whether an item is alive or has been
-/// dropped, use [`DropTracker::state`] or see the documentation for [`DropTracker`] for
-/// alternatives.
+/// `DropItem` instances are created by [`DropTracker::track`], [`DropTracker::track_with_value`],
+/// and related functions. `DropItem` instances may contain an "underlying value" that affects the
+/// item behavior when used with standard traits. The underlying value is either:
+///
+/// * a clone of `key` when constructing an item using `track(key)` (implicit); or
+/// * `value` when constructing an item using `track_with_value(key, value)` (explicit).
+///
+/// To check whether an item is alive or has been dropped, use [`DropTracker::state`] or see the
+/// documentation for [`DropTracker`] for alternatives.
+///
+/// # Coercing and borrowing
+///
+/// `DropItem` instances may be [_coerced_](std::ops::Deref) and [_borrowed_](std::borrow::Borrow)
+/// as the the underlying value type. This means that, for example, if you create a `DropItem`
+/// using `track(String::from("abc"))`, you may call all of the `String` methods on that item.
+///
+/// `DropItem` also implements the standard traits [`PartialEq`](std::cmp::PartialEq),
+/// [`Eq`](std::cmp::Eq), [`PartialOrd`](std::cmp::PartialOrd), [`Ord`](std::cmp::Ord) and
+/// [`Hash`](std::hash::Hash), [`Display`](std::fmt::Display), [`Debug`](std::fmt::Debug) if the
+/// type of the underlying value implements them.
+///
+/// # Cloning
 ///
 /// `DropItem` does not implement the [`Clone`] trait as it would introduce ambiguity with respect
-/// to understanding what has been dropped and what is alive.
+/// to understanding whether the item has been dropped or is still alive when using
+/// [`DropTracker::state`].
 ///
 /// # Double drop
 ///
@@ -842,83 +1003,122 @@ impl<K: Hash + Eq> DropTracker<K> {
 /// cause undefined behavior (unless you're calling drop on an invalid memory location). The panic
 /// on double drop is an useful feature to detect logic errors in destructors.
 ///
-/// # Equality, ordering and hashing
+/// # Safety
 ///
-/// The [`DropItem`] instances returned by [`DropTracker::track()`] do not implement any of the
-/// standard traits like [`PartialEq`], [`PartialOrd`] or [`Hash`]. This is a deliberate choice
-/// to keep the implementation simple and to avoid enforcing a particular behavior of items.
+/// Borrowing or performing operations on the underlying value of a `DropItem` is generally safe
+/// when using safe Rust code. However, `DropItem`s are often used in unsafe code and are used to
+/// detect potential bugs. In those circumstances, it is possible to trigger undefined behavior.
+/// In particular, borrowing or performing operations on a `DropItem` while another thread is
+/// dropping will result in undefined behavior (although it must be noted that this is a bug in the
+/// caller code and is not something that should happen in safe Rust code).
 ///
-/// If you wish to implement standard traits on items or associate data to them, consider using
-/// the [new type pattern].
+/// Only [`Drop`](std::ops::Drop) on a `DropItem` is guaranteed to be safe in all circumstances.
 ///
-/// Here is an example of how the new type pattern can be used to place `DropItem` instances inside
-/// a [`HashSet`](std::collections::HashSet):
-///
-/// [new type pattern]: https://doc.rust-lang.org/rust-by-example/generics/new_types.html
+/// # Examples
 ///
 /// ```
-/// use std::borrow::Borrow;
-/// use std::hash::{Hash, Hasher};
-/// use drop_tracker::DropItem;
-///
-/// #[derive(Debug)]
-/// struct StringDropItem {
-///     s: String,
-///     _d: DropItem,
-/// }
-///
-/// impl PartialEq for StringDropItem {
-///     fn eq(&self, other: &Self) -> bool {
-///         self.s == other.s
-///     }
-/// }
-///
-/// impl Eq for StringDropItem {
-/// }
-///
-/// impl Hash for StringDropItem {
-///     fn hash<H: Hasher>(&self, state: &mut H) {
-///         self.s.hash(state)
-///     }
-/// }
-///
-/// impl Borrow<str> for StringDropItem {
-///     fn borrow(&self) -> &str {
-///         &self.s
-///     }
-/// }
-///
-/// // Now DropItems can be used inside HashSet
-/// use std::collections::HashSet;
 /// use drop_tracker::DropTracker;
+///
+/// let mut tracker = DropTracker::<u32>::new();
+///
+/// // Create an item using `123u32` as the key. Implicitly, this also sets its value to `123u32`
+/// let item = tracker.track(123);
+///
+/// // Check that the item is alive
+/// tracker.state(&123).alive().expect("item should be alive");
+///
+/// // Dereference the value of the item
+/// assert_eq!(*item, 123);
+/// assert!(!item.is_power_of_two());
+///
+/// // Drop the item and check that it really got dropped
+/// drop(item);
+/// tracker.state(&123).dropped().expect("item should be dropped");
+///
+/// // Create a new item, this time using an explicit `String` value
+/// let abc_item = tracker.track_with_value(111, String::from("abc"));
+///
+/// // Comparision with other items using `String` work using the underlying `String`
+/// // operations
+/// assert_eq!(abc_item, tracker.track_with_value(222, String::from("abc")));
+/// assert_ne!(abc_item, tracker.track_with_value(333, String::from("def")));
+/// assert!(abc_item < tracker.track_with_value(444, String::from("def")));
+///
+/// // Display, debug and hashing also work using the underlying `String` operations
+/// assert_eq!(format!("{}", abc_item), "abc");
+/// assert_eq!(format!("{:?}", abc_item), "DropItem { value: \"abc\", state: Alive }");
+///
+/// use std::collections::hash_map::DefaultHasher;
+/// use std::hash::Hash;
+/// use std::hash::Hasher;
+/// fn hash<T: Hash + ?Sized>(x: &T) -> u64 {
+///     let mut hasher = DefaultHasher::new();
+///     x.hash(&mut hasher);
+///     hasher.finish()
+/// }
+/// assert_eq!(hash(&abc_item), hash(&"abc"));
+///
+/// // Methods on `String` can be called transparently on items
+/// assert_eq!(abc_item.to_ascii_uppercase(), "ABC");
+/// ```
+///
+/// Using hashable items in a set, with an implicit underlying value:
+///
+/// ```
+/// use drop_tracker::DropTracker;
+/// use std::collections::HashSet;
 ///
 /// let mut tracker = DropTracker::new();
 ///
 /// let mut set = HashSet::from([
-///     StringDropItem { s: String::from("first"),  _d: tracker.track(1) },
-///     StringDropItem { s: String::from("second"), _d: tracker.track(2) },
-///     StringDropItem { s: String::from("third"),  _d: tracker.track(3) },
+///     tracker.track(1),
+///     tracker.track(2),
+///     tracker.track(3),
+/// ]);
+///
+/// set.remove(&3);
+///
+/// tracker.state(&1).alive().expect("first item should be alive");
+/// tracker.state(&2).alive().expect("second item should be alive");
+/// tracker.state(&3).dropped().expect("third item should be dropped");
+/// ```
+///
+/// Using hashable items in a set, with an explicit underlying value:
+///
+/// ```
+/// use drop_tracker::DropTracker;
+/// use std::collections::HashSet;
+///
+/// let mut tracker = DropTracker::new();
+///
+/// let mut set = HashSet::from([
+///     tracker.track_with_value(1, String::from("first")),
+///     tracker.track_with_value(2, String::from("second")),
+///     tracker.track_with_value(3, String::from("third")),
 /// ]);
 ///
 /// set.remove("third");
 ///
-/// tracker.state(&1).alive().expect("first should be alive");
-/// tracker.state(&2).alive().expect("second should be alive");
-/// tracker.state(&3).dropped().expect("third should be dropped");
+/// tracker.state(&1).alive().expect("first item should be alive");
+/// tracker.state(&2).alive().expect("second item should be alive");
+/// tracker.state(&3).dropped().expect("third item should be dropped");
 /// ```
 #[must_use = "if you don't use this item, it will get automatically dropped"]
-#[derive(Debug)]
-pub struct DropItem {
+pub struct DropItem<V> {
+    value: MaybeUninit<V>,
     state: Option<StateCell>,
 }
 
-impl DropItem {
-    const fn new(state: StateCell) -> Self {
-        Self { state: Some(state) }
+impl<V> DropItem<V> {
+    const fn new(value: V, state: StateCell) -> Self {
+        Self {
+            value: MaybeUninit::new(value),
+            state: Some(state),
+        }
     }
 }
 
-impl Drop for DropItem {
+impl<V> Drop for DropItem<V> {
     fn drop(&mut self) {
         // The use of an Option might seem redundant, but it's actually needed to safely detect and
         // report double drops. Without the Option, we would be touching shared memory behind an Rc
@@ -930,6 +1130,9 @@ impl Drop for DropItem {
                 if state.replace(State::Dropped).is_dropped() {
                     panic!("item dropped twice");
                 }
+                // SAFETY: `state` was `Some(State::Alive)`, which means that `value` has not been
+                // dropped yet and that `value` is initialized.
+                unsafe { self.value.assume_init_drop() };
             },
             None => {
                 panic!("item dropped twice");
