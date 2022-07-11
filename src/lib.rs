@@ -499,7 +499,6 @@ impl<K: Hash + Eq> DropTracker<K> {
     /// let _ = tracker.forget("abc");
     /// let item2 = tracker.track("abc"); // works
     /// ```
-    #[must_use = "if you don't use this item, it will get automatically dropped"]
     pub fn track(&mut self, key: K) -> DropItem {
         self.try_track(key).expect("cannot track key")
     }
@@ -908,6 +907,7 @@ impl<K: Hash + Eq> DropTracker<K> {
 /// tracker.state(&2).alive().expect("second should be alive");
 /// tracker.state(&3).dropped().expect("third should be dropped");
 /// ```
+#[must_use = "if you don't use this item, it will get automatically dropped"]
 #[derive(Debug)]
 pub struct DropItem {
     state: Option<StateCell>,
