@@ -2,6 +2,9 @@
 
 ## drop-tracker 0.1.2
 
+* Added assertions methods to `DropTracker` (`assert_alive()`,
+  `assert_dropped()`, etc) to make test code more concise.
+
 * Added `fully_alive()` and `fully_dropped()` to `DropTracker` to quickly check
   if all the tracked keys are in a the desired state.
 

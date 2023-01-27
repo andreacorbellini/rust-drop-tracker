@@ -84,6 +84,33 @@
 //!        .expect("item is expected to be dropped"); // panics, meaning that the bug was detected
 //! ```
 //!
+//! If you want to write more succint code and don't care about the error message, you can also use
+//! the following `assert` methods:
+//!
+//! * [`assert_alive(...)`](DropTracker::assert_alive) equivalent to
+//!   `state(...).alive().expect("error message")`
+//! * [`assert_dropped(...)`](DropTracker::assert_dropped) equivalent to
+//!   `state(...).dropped().expect("error message")`
+//! * [`assert_all_alive(...)`](DropTracker::assert_all_alive) equivalent to
+//!   `all_alive(...).expect("error message")`
+//! * [`assert_all_dropped(...)`](DropTracker::assert_all_dropped) equivalent to
+//!   `all_dropped(...).expect("error message")`
+//!
+//! Here is how the first example above could be rewritten more consisely using `assert` methods:
+//!
+//! ```
+//! use drop_tracker::DropTracker;
+//!
+//! let mut tracker = DropTracker::new();
+//! let v = vec![tracker.track(1),
+//!              tracker.track(2),
+//!              tracker.track(3)];
+//!
+//! tracker.assert_all_alive(1..=3);
+//! drop(v);
+//! tracker.assert_all_dropped(1..=3);
+//! ```
+//!
 //! # Double drop
 //!
 //! [`DropItem`] will panic if it gets dropped twice or more, as this is generally a bug and may
@@ -1077,6 +1104,306 @@ impl<K: Hash + Eq> DropTracker<K> {
         match alive {
             None => Ok(()),
             Some(alive) => Err(SomeAliveError { alive }),
+        }
+    }
+
+    /// Checks that all the given key points to an item that is [alive](State::Alive), panics
+    /// otherwise.
+    ///
+    /// `assert_alive(...)` is a shortcut for `state(...).alive().unwrap()`. See
+    /// [`state()`](DropTracker::state) for more details.
+    ///
+    /// # Panics
+    ///
+    /// If the key is not tracked, or if it has been dropped.
+    ///
+    /// # Examples
+    ///
+    /// ```should_panic
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item2 = tracker.track(1);
+    /// let item2 = tracker.track(2);
+    ///
+    /// drop(item2);
+    ///
+    /// tracker.assert_alive(&1); // succeeds
+    /// tracker.assert_alive(&2); // panics (item was dropped)
+    /// tracker.assert_alive(&3); // panics (key is not tracked)
+    /// ```
+    pub fn assert_alive<Q>(&self, key: &Q)
+        where K: Borrow<Q>,
+              Q: Hash + Eq + ?Sized
+    {
+        let state = match self.try_state(key) {
+            Ok(state) => state,
+            Err(err) => panic!("{err}"),
+        };
+        match state.alive() {
+            Ok(()) => (),
+            Err(err) => panic!("{err}"),
+        }
+    }
+
+    /// Checks that all the given key points to an item that is [dropped](State::Dropped), panics
+    /// otherwise.
+    ///
+    /// `assert_dropped(...)` is a shortcut for `state(...).dropped().unwrap()`. See
+    /// [`state()`](DropTracker::state) for more details.
+    ///
+    /// # Panics
+    ///
+    /// If the key is not tracked, or if it is alive.
+    ///
+    /// # Examples
+    ///
+    /// ```should_panic
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item1 = tracker.track(1);
+    /// let item2 = tracker.track(2);
+    ///
+    /// drop(item1);
+    ///
+    /// tracker.assert_dropped(&1); // succeeds
+    /// tracker.assert_dropped(&2); // panics (item is alive)
+    /// tracker.assert_dropped(&3); // panics (key is not tracked)
+    /// ```
+    pub fn assert_dropped<Q>(&self, key: &Q)
+        where K: Borrow<Q>,
+              Q: Hash + Eq + ?Sized
+    {
+        let state = match self.try_state(key) {
+            Ok(state) => state,
+            Err(err) => panic!("{err}"),
+        };
+        match state.dropped() {
+            Ok(()) => (),
+            Err(err) => panic!("{err}"),
+        }
+    }
+
+    /// Checks that all the given keys point to items that are [alive](State::Alive), panics
+    /// otherwise.
+    ///
+    /// `assert_all_alive(...)` is a shortcut for `all_alive(...).unwrap()`. See
+    /// [`all_alive()`](DropTracker::all_alive) for more details.
+    ///
+    /// # Panics
+    ///
+    /// If a key is not tracked, or if it has been dropped.
+    ///
+    /// # Examples
+    ///
+    /// ```should_panic
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item1 = tracker.track(1);
+    /// let item2 = tracker.track(2);
+    /// let item3 = tracker.track(3);
+    /// let item4 = tracker.track(4);
+    ///
+    /// drop(item3);
+    /// drop(item4);
+    ///
+    /// tracker.assert_all_alive([1, 2]); // succeeds
+    /// tracker.assert_all_alive([3, 4]); // panics (items were dropped)
+    /// tracker.assert_all_alive([5, 6]); // panics (keys are not tracked)
+    /// ```
+    ///
+    /// Passing an empty set of keys succeeds:
+    ///
+    /// ```
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let tracker = DropTracker::<()>::new();
+    /// tracker.assert_all_alive([(); 0]);
+    /// ```
+    pub fn assert_all_alive<Q, Item, Iter>(&self, iter: Iter)
+        where K: Borrow<Q>,
+              Q: Hash + Eq + ?Sized,
+              Item: Borrow<Q> + fmt::Debug,
+              Iter: IntoIterator<Item = Item>
+    {
+        match self.all_alive(iter) {
+            Ok(()) => (),
+            Err(err) => panic!("{err}"),
+        }
+    }
+
+    /// Checks that all the given keys point to items that are [dropped](State::Dropped), panics
+    /// otherwise.
+    ///
+    /// `assert_all_dropped(...)` is a shortcut for `all_dropped(...).unwrap()`. See
+    /// [`all_dropped()`](DropTracker::all_dropped) for more details.
+    ///
+    /// # Panics
+    ///
+    /// If a key is not tracked, or if it is alive.
+    ///
+    /// # Examples
+    ///
+    /// ```should_panic
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item1 = tracker.track(1);
+    /// let item2 = tracker.track(2);
+    /// let item3 = tracker.track(3);
+    /// let item4 = tracker.track(4);
+    ///
+    /// drop(item1);
+    /// drop(item2);
+    ///
+    /// tracker.assert_all_dropped([1, 2]); // succeeds
+    /// tracker.assert_all_dropped([3, 4]); // panics (items are alive)
+    /// tracker.assert_all_dropped([5, 6]); // panics (keys are not tracked)
+    /// ```
+    ///
+    /// Passing an empty set of keys succeeds:
+    ///
+    /// ```
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let tracker = DropTracker::<()>::new();
+    /// tracker.assert_all_dropped([(); 0]);
+    /// ```
+    pub fn assert_all_dropped<Q, Item, Iter>(&self, iter: Iter)
+        where K: Borrow<Q>,
+              Q: Hash + Eq + ?Sized,
+              Item: Borrow<Q> + fmt::Debug,
+              Iter: IntoIterator<Item = Item>
+    {
+        match self.all_dropped(iter) {
+            Ok(()) => (),
+            Err(err) => panic!("{err}"),
+        }
+    }
+
+    /// Checks that all the keys tracked are [alive](State::Alive), panics otherwise.
+    ///
+    /// `assert_fully_alive()` is a shortcut for `fully_alive().unwrap()`. See
+    /// [`fully_alive()`](DropTracker::fully_alive) for more details.
+    ///
+    /// # Panics
+    ///
+    /// If one or more items were found to have been [dropped](State::Dropped).
+    ///
+    /// # Examples
+    ///
+    /// Calling `assert_fully_alive()` when all items are alive succeeds:
+    ///
+    /// ```
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item1 = tracker.track(1);
+    /// let item2 = tracker.track(2);
+    ///
+    /// tracker.assert_fully_alive(); // succeeds
+    /// ```
+    ///
+    /// Calling `assert_fully_alive()` when one or more items are dropped causes a panic:
+    ///
+    /// ```should_panic
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item1 = tracker.track(1);
+    /// let item2 = tracker.track(2);
+    ///
+    /// drop(item1);
+    ///
+    /// tracker.assert_fully_alive(); // panics
+    /// ```
+    ///
+    /// Calling `assert_fully_alive()` when the tracker is empty succeeds:
+    ///
+    /// ```
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let tracker = DropTracker::<()>::new();
+    /// tracker.assert_fully_alive(); // succeeds
+    /// ```
+    pub fn assert_fully_alive(&self)
+        where K: fmt::Debug
+    {
+        match self.fully_alive() {
+            Ok(()) => (),
+            Err(err) => panic!("{err}"),
+        }
+    }
+
+    /// Checks that all the keys tracked are [dropped](State::Dropped), panics otherwise.
+    ///
+    /// `assert_fully_dropped()` is a shortcut for `fully_dropped().unwrap()`. See
+    /// [`fully_dropped()`](DropTracker::fully_dropped) for more details.
+    ///
+    /// # Panics
+    ///
+    /// If one or more items were found [alive](State::Alive).
+    ///
+    /// # Examples
+    ///
+    /// Calling `assert_fully_dropped()` when items are alive causes a panic:
+    ///
+    /// ```should_panic
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item1 = tracker.track(1);
+    /// let item2 = tracker.track(2);
+    ///
+    /// tracker.assert_fully_dropped(); // panics
+    /// ```
+    ///
+    /// Calling `assert_fully_dropped()` when all items are dropped succeeds:
+    ///
+    /// ```
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item1 = tracker.track(1);
+    /// let item2 = tracker.track(2);
+    ///
+    /// drop(item1);
+    /// drop(item2);
+    ///
+    /// tracker.assert_fully_dropped(); // succeeds
+    /// ```
+    ///
+    /// Calling `assert_fully_dropped()` when the tracker is empty succeeds:
+    ///
+    /// ```
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let tracker = DropTracker::<()>::new();
+    /// tracker.assert_fully_dropped(); // succeeds
+    /// ```
+    pub fn assert_fully_dropped(&self)
+        where K: fmt::Debug
+    {
+        match self.fully_dropped() {
+            Ok(()) => (),
+            Err(err) => panic!("{err}"),
         }
     }
 }

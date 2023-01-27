@@ -248,6 +248,51 @@ fn double_drop() {
 }
 
 #[test]
+fn assertions() {
+    let mut tracker = DropTracker::new();
+
+    tracker.assert_all_alive([0u32; 0]);
+    tracker.assert_all_dropped([0u32; 0]);
+    tracker.assert_fully_alive();
+    tracker.assert_fully_dropped();
+
+    let panic_err = catch_panic_error(|| tracker.assert_alive(&1));
+    assert_eq!(panic_err, "item is not tracked");
+    let panic_err = catch_panic_error(|| tracker.assert_dropped(&1));
+    assert_eq!(panic_err, "item is not tracked");
+    let panic_err = catch_panic_error(|| tracker.assert_all_alive([1]));
+    assert_eq!(panic_err, "not all items are alive: not tracked: [1]");
+    let panic_err = catch_panic_error(|| tracker.assert_all_dropped([1]));
+    assert_eq!(panic_err, "not all items are dropped: not tracked: [1]");
+
+    let item = tracker.track(1);
+
+    tracker.assert_alive(&1);
+    tracker.assert_all_alive([1]);
+    tracker.assert_fully_alive();
+
+    let panic_err = catch_panic_error(|| tracker.assert_dropped(&1));
+    assert_eq!(panic_err, "item is alive");
+    let panic_err = catch_panic_error(|| tracker.assert_all_dropped([1]));
+    assert_eq!(panic_err, "not all items are dropped: alive: [1]");
+    let panic_err = catch_panic_error(|| tracker.assert_fully_dropped());
+    assert_eq!(panic_err, "item is alive: 1");
+
+    drop(item);
+
+    tracker.assert_dropped(&1);
+    tracker.assert_all_dropped([1]);
+    tracker.assert_fully_dropped();
+
+    let panic_err = catch_panic_error(|| tracker.assert_alive(&1));
+    assert_eq!(panic_err, "item is dropped");
+    let panic_err = catch_panic_error(|| tracker.assert_all_alive([1]));
+    assert_eq!(panic_err, "not all items are alive: dropped: [1]");
+    let panic_err = catch_panic_error(|| tracker.assert_fully_alive());
+    assert_eq!(panic_err, "item is dropped: 1");
+}
+
+#[test]
 fn primitive_eq() {
     assert_eq!(DropTracker::new().track(123i8),                  123i8);
     assert_eq!(DropTracker::new().track(123i16),                 123i16);
