@@ -2,6 +2,9 @@
 
 ## drop-tracker 0.1.2
 
+* Added `fully_alive()` and `fully_dropped()` to `DropTracker` to quickly check
+  if all the tracked keys are in a the desired state.
+
 * `DropItem` now implements traits to compare its keys with primitive types
   (`i32`, `char`, `bool`, `str`, ...).
 

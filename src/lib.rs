@@ -966,6 +966,75 @@ impl<K: Hash + Eq> DropTracker<K> {
             Err(err)
         }
     }
+
+    /// Returns [`Ok`] if all the keys tracked are [alive](State::Alive), [`Err`] otherwise.
+    ///
+    /// The error returned references an arbitrary keys that was found [dropped](State::Dropped).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    /// use drop_tracker::SomeDroppedError;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item1 = tracker.track(1);
+    /// let item2 = tracker.track(2);
+    /// let item3 = tracker.track(3);
+    ///
+    /// assert_eq!(tracker.fully_alive(), Ok(()));
+    ///
+    /// drop(item1);
+    ///
+    /// assert_eq!(tracker.fully_alive(), Err(SomeDroppedError { dropped: &1 }));
+    /// ```
+    pub fn fully_alive(&self) -> Result<(), SomeDroppedError<'_, K>> {
+        let dropped = self.tracked.iter()
+                          .find(|(_, state)| state.is_dropped())
+                          .map(|(key, _)| key);
+        match dropped {
+            None => Ok(()),
+            Some(dropped) => Err(SomeDroppedError { dropped }),
+        }
+    }
+
+    /// Returns [`Ok`] if all the keys tracked are [dropped](State::Dropped), [`Err`] otherwise.
+    ///
+    /// The error returned references an arbitrary keys that was found [alive](State::Alive).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #![allow(unused_variables)]
+    /// use drop_tracker::DropTracker;
+    /// use drop_tracker::SomeAliveError;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let item1 = tracker.track(1);
+    /// let item2 = tracker.track(2);
+    /// let item3 = tracker.track(3);
+    ///
+    /// drop(item1);
+    /// drop(item2);
+    ///
+    /// assert_eq!(tracker.fully_dropped(), Err(SomeAliveError { alive: &3 }));
+    ///
+    /// drop(item3);
+    ///
+    /// assert_eq!(tracker.fully_dropped(), Ok(()));
+    /// ```
+    pub fn fully_dropped(&self) -> Result<(), SomeAliveError<'_, K>> {
+        let alive = self.tracked.iter()
+                        .find(|(_, state)| state.is_alive())
+                        .map(|(key, _)| key);
+        match alive {
+            None => Ok(()),
+            Some(alive) => Err(SomeAliveError { alive }),
+        }
+    }
 }
 
 /// An item that will notify the parent [`DropTracker`] once it gets dropped.
@@ -1261,4 +1330,40 @@ impl<K: fmt::Debug> fmt::Display for NotAllDroppedError<K> {
 }
 
 impl<K: fmt::Debug> Error for NotAllDroppedError<K> {
+}
+
+/// Error returned when failing to assert that all tracked items are [dropped](State::Dropped).
+///
+/// See [`DropTracker::fully_dropped`] for more information and examples.
+#[derive(PartialEq, Eq, Debug)]
+pub struct SomeAliveError<'a, K> {
+    /// Reference to the first key that was found [alive](State::Alive).
+    pub alive: &'a K,
+}
+
+impl<'a, K: fmt::Debug> fmt::Display for SomeAliveError<'a, K> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "item is alive: {:?}", self.alive)
+    }
+}
+
+impl<'a, K: fmt::Debug> Error for SomeAliveError<'a, K> {
+}
+
+/// Error returned when failing to assert that all tracked items are [alive](State::Alive).
+///
+/// See [`DropTracker::fully_alive`] for more information and examples.
+#[derive(PartialEq, Eq, Debug)]
+pub struct SomeDroppedError<'a, K> {
+    /// Reference to the first key that was found to have been be [dropped](State::Dropped).
+    pub dropped: &'a K,
+}
+
+impl<'a, K: fmt::Debug> fmt::Display for SomeDroppedError<'a, K> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "item is dropped: {:?}", self.dropped)
+    }
+}
+
+impl<'a, K: fmt::Debug> Error for SomeDroppedError<'a, K> {
 }
