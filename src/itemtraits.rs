@@ -114,19 +114,87 @@ impl_ref_trait! {
     impl<{V: AsMut<T>, T}>          AsMut<T>        for DropItem<V>;
 }
 
+impl<V: Eq> Eq for DropItem<V> {
+}
+
 impl<V: PartialEq<W>, W> PartialEq<DropItem<W>> for DropItem<V> {
     fn eq(&self, other: &DropItem<W>) -> bool {
         self.inner_ref().eq(other.inner_ref())
     }
 }
 
-impl<V: Eq> Eq for DropItem<V> {
-}
-
 impl<V: PartialOrd<W>, W> PartialOrd<DropItem<W>> for DropItem<V> {
     fn partial_cmp(&self, other: &DropItem<W>) -> Option<Ordering> {
         self.inner_ref().partial_cmp(other.inner_ref())
     }
+}
+
+macro_rules! impl_cmp_trait {
+    () => {};
+    (
+        impl < $( $lifetime:lifetime , )? $param:ident $( , $extra_param:ident )? >
+        PartialEq + PartialOrd < $other_type:ty >
+        for DropItem < $item_bound:ty > ; $( $rest:tt )*
+    ) => {
+        impl<$($lifetime,)? $param $(, $extra_param)?> PartialEq<$other_type> for DropItem<$item_bound>
+            where $param: PartialEq<$other_type>
+        {
+            fn eq(&self, other: &$other_type) -> bool {
+                self.inner_ref().eq(other)
+            }
+        }
+
+        impl<$($lifetime,)? $param $(, $extra_param)?> PartialEq<DropItem<$item_bound>> for $other_type
+            where $other_type: PartialEq<$param>
+        {
+            fn eq(&self, other: &DropItem<$item_bound>) -> bool {
+                self.eq(other.inner_ref())
+            }
+        }
+
+        impl<$($lifetime,)? $param $(, $extra_param)?> PartialOrd<$other_type> for DropItem<$item_bound>
+            where $param: PartialOrd<$other_type>
+        {
+            fn partial_cmp(&self, other: &$other_type) -> Option<Ordering> {
+                self.inner_ref().partial_cmp(other)
+            }
+        }
+
+        impl<$($lifetime,)? $param $(, $extra_param)?> PartialOrd<DropItem<$item_bound>> for $other_type
+            where $other_type: PartialOrd<$param>
+        {
+            fn partial_cmp(&self, other: &DropItem<$item_bound>) -> Option<Ordering> {
+                self.partial_cmp(other.inner_ref())
+            }
+        }
+
+        impl_cmp_trait! { $($rest)* }
+    };
+}
+
+impl_cmp_trait! {
+    impl<V>         PartialEq+PartialOrd<i8>        for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<i16>       for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<i32>       for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<i64>       for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<i128>      for DropItem<V>;
+
+    impl<V>         PartialEq+PartialOrd<u8>        for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<u16>       for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<u32>       for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<u64>       for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<u128>      for DropItem<V>;
+
+    impl<V>         PartialEq+PartialOrd<f32>       for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<f64>       for DropItem<V>;
+
+    impl<V>         PartialEq+PartialOrd<char>      for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<bool>      for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<()>        for DropItem<V>;
+    impl<V>         PartialEq+PartialOrd<str>       for DropItem<V>;
+    impl<'a, V>     PartialEq+PartialOrd<&'a str>   for DropItem<V>;
+    impl<V, T>      PartialEq+PartialOrd<[T]>       for DropItem<V>;
+    impl<'a, V, T>  PartialEq+PartialOrd<&'a [T]>   for DropItem<V>;
 }
 
 impl<V: hash::Hash> hash::Hash for DropItem<V> {
