@@ -856,6 +856,8 @@ impl<K: Hash + Eq> DropTracker<K> {
     ///
     /// An error may be returned in two cases: either a key is not tracked, or it has been dropped.
     ///
+    /// This method returns `Ok` if the sequence of keys passed is empty.
+    ///
     /// # Examples
     ///
     /// ```
@@ -880,6 +882,15 @@ impl<K: Hash + Eq> DropTracker<K> {
     ///                dropped: vec![3, 4],
     ///                untracked: vec![5, 6],
     ///            }));
+    /// ```
+    ///
+    /// Passing an empty set of keys returns `Ok`:
+    ///
+    /// ```
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let tracker = DropTracker::<()>::new();
+    /// assert_eq!(tracker.all_alive([(); 0]), Ok(()));
     /// ```
     pub fn all_alive<Q, Item, Iter>(&self, iter: Iter) -> Result<(), NotAllAliveError<Item>>
         where K: Borrow<Q>,
@@ -912,7 +923,9 @@ impl<K: Hash + Eq> DropTracker<K> {
     /// Returns [`Ok`] if all the given keys point to items that are [dropped](State::Dropped),
     /// [`Err`] otherwise.
     ///
-    /// An error may be returned in two cases: either a key is not tracked, or it has been dropped.
+    /// An error may be returned in two cases: either a key is not tracked, or it is alive.
+    ///
+    /// This method returns `Ok` if the sequence of keys passed is empty.
     ///
     /// # Examples
     ///
@@ -938,6 +951,15 @@ impl<K: Hash + Eq> DropTracker<K> {
     ///                alive: vec![1, 2],
     ///                untracked: vec![5, 6],
     ///            }));
+    /// ```
+    ///
+    /// Passing an empty set of keys returns `Ok`:
+    ///
+    /// ```
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let tracker = DropTracker::<()>::new();
+    /// assert_eq!(tracker.all_dropped([(); 0]), Ok(()));
     /// ```
     pub fn all_dropped<Q, Item, Iter>(&self, iter: Iter) -> Result<(), NotAllDroppedError<Item>>
         where K: Borrow<Q>,
@@ -971,6 +993,8 @@ impl<K: Hash + Eq> DropTracker<K> {
     ///
     /// The error returned references an arbitrary keys that was found [dropped](State::Dropped).
     ///
+    /// If the tracker is empty, this method returns `Ok`.
+    ///
     /// # Examples
     ///
     /// ```
@@ -990,6 +1014,15 @@ impl<K: Hash + Eq> DropTracker<K> {
     ///
     /// assert_eq!(tracker.fully_alive(), Err(SomeDroppedError { dropped: &1 }));
     /// ```
+    ///
+    /// Calling `fully_alive()` on an empty tracker always returns `Ok`:
+    ///
+    /// ```
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let tracker = DropTracker::<()>::new();
+    /// assert_eq!(tracker.fully_alive(), Ok(()));
+    /// ```
     pub fn fully_alive(&self) -> Result<(), SomeDroppedError<'_, K>> {
         let dropped = self.tracked.iter()
                           .find(|(_, state)| state.is_dropped())
@@ -1003,6 +1036,8 @@ impl<K: Hash + Eq> DropTracker<K> {
     /// Returns [`Ok`] if all the keys tracked are [dropped](State::Dropped), [`Err`] otherwise.
     ///
     /// The error returned references an arbitrary keys that was found [alive](State::Alive).
+    ///
+    /// If the tracker is empty, this method returns `Ok`.
     ///
     /// # Examples
     ///
@@ -1024,6 +1059,15 @@ impl<K: Hash + Eq> DropTracker<K> {
     ///
     /// drop(item3);
     ///
+    /// assert_eq!(tracker.fully_dropped(), Ok(()));
+    /// ```
+    ///
+    /// Calling `fully_dropped()` on an empty tracker always returns `Ok`:
+    ///
+    /// ```
+    /// use drop_tracker::DropTracker;
+    ///
+    /// let tracker = DropTracker::<()>::new();
     /// assert_eq!(tracker.fully_dropped(), Ok(()));
     /// ```
     pub fn fully_dropped(&self) -> Result<(), SomeAliveError<'_, K>> {
