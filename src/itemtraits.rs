@@ -144,27 +144,11 @@ macro_rules! impl_cmp_trait {
             }
         }
 
-        impl<$($lifetime,)? $param $(, $extra_param)?> PartialEq<DropItem<$item_bound>> for $other_type
-            where $other_type: PartialEq<$param>
-        {
-            fn eq(&self, other: &DropItem<$item_bound>) -> bool {
-                self.eq(other.inner_ref())
-            }
-        }
-
         impl<$($lifetime,)? $param $(, $extra_param)?> PartialOrd<$other_type> for DropItem<$item_bound>
             where $param: PartialOrd<$other_type>
         {
             fn partial_cmp(&self, other: &$other_type) -> Option<Ordering> {
                 self.inner_ref().partial_cmp(other)
-            }
-        }
-
-        impl<$($lifetime,)? $param $(, $extra_param)?> PartialOrd<DropItem<$item_bound>> for $other_type
-            where $other_type: PartialOrd<$param>
-        {
-            fn partial_cmp(&self, other: &DropItem<$item_bound>) -> Option<Ordering> {
-                self.partial_cmp(other.inner_ref())
             }
         }
 

@@ -317,30 +317,6 @@ fn primitive_eq() {
     assert_eq!(DropTracker::new().track("abc".to_owned()),       "abc");
     assert_eq!(DropTracker::new().track([1, 2, 3]),              [1, 2, 3][..]);
     assert_eq!(DropTracker::new().track(vec![1, 2, 3]),          [1, 2, 3][..]);
-
-    assert_eq!(123i8,         DropTracker::new().track(123i8));
-    assert_eq!(123i16,        DropTracker::new().track(123i16));
-    assert_eq!(123i32,        DropTracker::new().track(123i32));
-    assert_eq!(123i64,        DropTracker::new().track(123i64));
-    assert_eq!(123i128,       DropTracker::new().track(123i128));
-
-    assert_eq!(123u8,         DropTracker::new().track(123u8));
-    assert_eq!(123u16,        DropTracker::new().track(123u16));
-    assert_eq!(123u32,        DropTracker::new().track(123u32));
-    assert_eq!(123u64,        DropTracker::new().track(123u64));
-    assert_eq!(123u128,       DropTracker::new().track(123u128));
-
-    assert_eq!(123f32,        DropTracker::new().track_with_value('a', 123f32));
-    assert_eq!(123f64,        DropTracker::new().track_with_value('b', 123f64));
-
-    assert_eq!('x',           DropTracker::new().track('x'));
-    assert_eq!(true,          DropTracker::new().track(true));
-    assert_eq!(false,         DropTracker::new().track(false));
-    assert_eq!((),            DropTracker::new().track(()));
-    assert_eq!("abc",         DropTracker::new().track("abc"));
-    assert_eq!("abc",         DropTracker::new().track("abc".to_owned()));
-    assert_eq!([1, 2, 3][..], DropTracker::new().track([1, 2, 3]));
-    assert_eq!([1, 2, 3][..], DropTracker::new().track(vec![1, 2, 3]));
 }
 
 #[test]
@@ -367,29 +343,6 @@ fn primitive_ne() {
     assert_ne!(DropTracker::new().track("abc".to_owned()),       "def");
     assert_ne!(DropTracker::new().track([1, 2, 3]),              [4, 5, 6][..]);
     assert_ne!(DropTracker::new().track(vec![1, 2, 3]),          [4, 5, 6][..]);
-
-    assert_ne!(100i8,         DropTracker::new().track(123i8));
-    assert_ne!(100i16,        DropTracker::new().track(123i16));
-    assert_ne!(100i32,        DropTracker::new().track(123i32));
-    assert_ne!(100i64,        DropTracker::new().track(123i64));
-    assert_ne!(100i128,       DropTracker::new().track(123i128));
-
-    assert_ne!(100u8,         DropTracker::new().track(123u8));
-    assert_ne!(100u16,        DropTracker::new().track(123u16));
-    assert_ne!(100u32,        DropTracker::new().track(123u32));
-    assert_ne!(100u64,        DropTracker::new().track(123u64));
-    assert_ne!(100u128,       DropTracker::new().track(123u128));
-
-    assert_ne!(100f32,        DropTracker::new().track_with_value('a', 123f32));
-    assert_ne!(100f64,        DropTracker::new().track_with_value('b', 123f64));
-
-    assert_ne!('y',           DropTracker::new().track('x'));
-    assert_ne!(false,         DropTracker::new().track(true));
-    assert_ne!(true,          DropTracker::new().track(false));
-    assert_ne!("def",         DropTracker::new().track("abc"));
-    assert_ne!("def",         DropTracker::new().track("abc".to_owned()));
-    assert_ne!([4, 5, 6][..], DropTracker::new().track([1, 2, 3]));
-    assert_ne!([4, 5, 6][..], DropTracker::new().track(vec![1, 2, 3]));
 }
 
 #[test]
@@ -411,24 +364,6 @@ fn primitive_lt() {
 
     assert!(DropTracker::new().track('x')                    < 'y');
     assert!(DropTracker::new().track(false)                  < true);
-
-    assert!(100i8   < DropTracker::new().track(123i8));
-    assert!(100i16  < DropTracker::new().track(123i16));
-    assert!(100i32  < DropTracker::new().track(123i32));
-    assert!(100i64  < DropTracker::new().track(123i64));
-    assert!(100i128 < DropTracker::new().track(123i128));
-
-    assert!(100u8   < DropTracker::new().track(123u8));
-    assert!(100u16  < DropTracker::new().track(123u16));
-    assert!(100u32  < DropTracker::new().track(123u32));
-    assert!(100u64  < DropTracker::new().track(123u64));
-    assert!(100u128 < DropTracker::new().track(123u128));
-
-    assert!(100f32  < DropTracker::new().track_with_value('a', 123f32));
-    assert!(100f64  < DropTracker::new().track_with_value('b', 123f64));
-
-    assert!('w'     < DropTracker::new().track('x'));
-    assert!(false   < DropTracker::new().track(true));
 }
 
 #[test]
@@ -450,22 +385,4 @@ fn primitive_gt() {
 
     assert!(DropTracker::new().track('x')                    > 'w');
     assert!(DropTracker::new().track(true)                   > false);
-
-    assert!(127i8   > DropTracker::new().track(123i8));
-    assert!(200i16  > DropTracker::new().track(123i16));
-    assert!(200i32  > DropTracker::new().track(123i32));
-    assert!(200i64  > DropTracker::new().track(123i64));
-    assert!(200i128 > DropTracker::new().track(123i128));
-
-    assert!(200u8   > DropTracker::new().track(123u8));
-    assert!(200u16  > DropTracker::new().track(123u16));
-    assert!(200u32  > DropTracker::new().track(123u32));
-    assert!(200u64  > DropTracker::new().track(123u64));
-    assert!(200u128 > DropTracker::new().track(123u128));
-
-    assert!(200f32  > DropTracker::new().track_with_value('a', 123f32));
-    assert!(200f64  > DropTracker::new().track_with_value('b', 123f64));
-
-    assert!('y'     > DropTracker::new().track('x'));
-    assert!(true    > DropTracker::new().track(false));
 }
