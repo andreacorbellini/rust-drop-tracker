@@ -1,5 +1,9 @@
 # Changelog
 
+## drop-tracker 0.1.3
+
+* Added `track_many()` to `DropTracker`.
+
 ## drop-tracker 0.1.2
 
 * Added assertions methods to `DropTracker` (`assert_alive()`,
