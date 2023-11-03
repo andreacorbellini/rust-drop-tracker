@@ -1,4 +1,6 @@
-[![Crates.io](https://img.shields.io/crates/v/drop-tracker)](https://crates.io/crates/drop-tracker) [![docs.rs](https://img.shields.io/docsrs/drop-tracker)](https://docs.rs/drop-tracker/latest/drop_tracker/) [![Crates.io](https://img.shields.io/crates/l/drop-tracker)](https://choosealicense.com/licenses/bsd-3-clause/)
+# Rust Drop Tracker
+
+[![Crate](https://img.shields.io/crates/v/drop-tracker)](https://crates.io/crates/drop-tracker) [![Documentation](https://img.shields.io/docsrs/drop-tracker)](https://docs.rs/drop-tracker/latest/drop_tracker/) [![License](https://img.shields.io/crates/l/drop-tracker)](https://choosealicense.com/licenses/bsd-3-clause/)
 
 Rust crate to check if a variable got correctly [dropped]. This crate is mostly useful in unit
 tests for code involving [`ManuallyDrop`], [`MaybeUninit`], unsafe memory management,
@@ -25,7 +27,7 @@ if it has been dropped.
 This is how you would test that a container like `Vec` drops all its items when the container
 is dropped:
 
-```
+```rust
 use drop_tracker::DropTracker;
 
 let mut tracker = DropTracker::new();
@@ -48,8 +50,7 @@ tracker.all_dropped(1..=3)
 
 This is how you would test a struct that involves `MaybeUninit`:
 
-```
-# #![allow(dead_code)]
+```rust
 use std::mem::MaybeUninit;
 
 struct MyOption<T> {
