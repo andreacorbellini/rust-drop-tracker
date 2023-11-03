@@ -699,6 +699,51 @@ impl<K: Hash + Eq> DropTracker<K> {
             },
         }
     }
+
+    /// Creates multiple new [`DropItem`] structs, each identified by a key from the given
+    /// iterable.
+    ///
+    /// Calling `track_many` is equivalent to calling [`track`](DropItem::track) multiple times.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use drop_tracker::DropTracker;
+    /// use drop_tracker::State;
+    ///
+    /// let mut tracker = DropTracker::new();
+    ///
+    /// let mut items = tracker.track_many(["abc", "def", "ghi"]);
+    ///
+    /// let abc = items.next().unwrap();
+    /// let def = items.next().unwrap();
+    /// let ghi = items.next().unwrap();
+    /// assert_eq!(items.next(), None);
+    /// drop(items);
+    ///
+    /// assert_eq!(abc, "abc");
+    /// assert_eq!(def, "def");
+    /// assert_eq!(ghi, "ghi");
+    ///
+    /// assert_eq!(tracker.state("abc"), State::Alive);
+    /// assert_eq!(tracker.state("def"), State::Alive);
+    /// assert_eq!(tracker.state("ghi"), State::Alive);
+    ///
+    /// drop(def);
+    ///
+    /// assert_eq!(tracker.state("abc"), State::Alive);
+    /// assert_eq!(tracker.state("def"), State::Dropped);
+    /// assert_eq!(tracker.state("ghi"), State::Alive);
+    ///
+    /// # drop(abc);
+    /// # drop(ghi);
+    /// ```
+    pub fn track_many<'a, Iter>(&'a mut self, keys: Iter) -> impl Iterator<Item = DropItem<K>> + 'a
+        where Iter: IntoIterator<Item = K> + 'a,
+              K: Clone
+    {
+        keys.into_iter().map(|key| self.track(key))
+    }
 }
 
 impl<K: Hash + Eq> DropTracker<K> {
